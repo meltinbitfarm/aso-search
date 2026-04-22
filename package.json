@@ -1,23 +1,33 @@
 {
-  "name": "aso-keywork-validator",
+  "name": "aso-keyword-validator",
   "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
+  "description": "ASO keyword validator with MCP server exposing the same analysis engine.",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:server": "tsx watch src/server/index.ts",
+    "build:server": "tsc -p tsconfig.server.json",
+    "start:server": "node dist-server/server/index.js",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "express": "^4.21.2",
+    "lru-cache": "^11.1.0",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "undici": "^7.10.0",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
     "vite": "^8.0.8"
   }
 }

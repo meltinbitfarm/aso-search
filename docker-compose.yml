@@ -1,0 +1,35 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - SERVICE_FQDN_FRONTEND_80
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    restart: unless-stopped
+    environment:
+      - SERVICE_FQDN_MCP_8787
+      - PORT=8787
+      - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN}
+      - NODE_ENV=production
+      - CACHE_TTL_MS=${CACHE_TTL_MS:-86400000}
+      - CACHE_MAX_ENTRIES=${CACHE_MAX_ENTRIES:-2000}
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8787/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

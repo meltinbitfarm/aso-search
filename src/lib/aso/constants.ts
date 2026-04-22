@@ -1,0 +1,30 @@
+export const SUFFIXES = [
+  "app",
+  "tracker",
+  "manager",
+  "planner",
+  "log",
+  "buddy",
+  "assistant",
+  "tool",
+  "helper",
+  "diary",
+] as const;
+
+export const SYNONYMS: Record<string, string[]> = {
+  expense: ["spending", "cost", "money", "budget", "finance"],
+  tracker: ["manager", "planner", "log", "diary", "monitor"],
+  budget: ["money", "finance", "saving", "expense"],
+  voice: ["audio", "sound", "speech", "recording"],
+  notes: ["memo", "journal", "diary", "notebook"],
+  minimal: ["simple", "clean", "lite", "easy"],
+  health: ["wellness", "fitness", "medical", "care"],
+  habit: ["routine", "daily", "streak", "goal"],
+  todo: ["task", "checklist", "planner", "organizer"],
+  photo: ["camera", "picture", "image", "snap"],
+  workout: ["exercise", "fitness", "gym", "training"],
+  sleep: ["rest", "bedtime", "nap", "dream"],
+  meditation: ["mindfulness", "calm", "zen", "relax"],
+  water: ["hydration", "drink", "aqua"],
+  food: ["meal", "recipe", "diet", "nutrition"],
+};
