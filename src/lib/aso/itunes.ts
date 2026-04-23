@@ -66,21 +66,70 @@ export async function lookupItunes(
   return data.results?.[0] ?? null;
 }
 
-interface ItunesHintsResponse {
-  hints?: Array<{ term: string; displayTerm?: string; priority?: number }>;
+// Mapping country → Apple Store Front header required by MZSearchHints.
+// Format: "<storefront>-<type>,29" where 29 is the Software store.
+// Without this header, the hints endpoint returns an empty array.
+const STOREFRONTS: Record<string, string> = {
+  us: "143441-1,29",
+  gb: "143444-2,29",
+  fr: "143442-3,29",
+  de: "143443-4,29",
+  ca: "143455-6,29",
+  es: "143454-8,29",
+  jp: "143462-9,29",
+  au: "143460-10,29",
+  it: "143450-15,29",
+  br: "143503-20,29",
+  nl: "143452-24,29",
+  in: "143467-28,29",
+};
+
+function storefrontFor(country: string): string {
+  return STOREFRONTS[country.toLowerCase()] ?? STOREFRONTS.us!;
 }
 
+function decodeXml(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function parsePlistHints(xml: string): string[] {
+  const re = /<key>\s*term\s*<\/key>\s*<string>([^<]*)<\/string>/g;
+  const terms: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    const raw = m[1]?.trim();
+    if (raw) terms.push(decodeXml(raw));
+  }
+  return terms;
+}
+
+/**
+ * Apple App Store autosuggest. Returns the suggested search terms for a prefix.
+ * Uses the non-documented MZSearchHints endpoint which requires an
+ * X-Apple-Store-Front header per country and returns plist XML.
+ */
 export async function itunesHints(term: string, country = "us"): Promise<string[]> {
   const u = new URL(`${ITUNES_HINTS_BASE}/WebObjects/MZSearchHints.woa/wa/hints`);
   u.searchParams.set("clientApplication", "Software");
   u.searchParams.set("term", term);
   u.searchParams.set("country", country);
   try {
-    const data = await getJson<ItunesHintsResponse>(u.toString());
-    const hints = data.hints ?? [];
-    return hints
-      .map((h) => h.displayTerm || h.term)
-      .filter((x): x is string => typeof x === "string" && x.length > 0);
+    const res = await fetch(u.toString(), {
+      dispatcher: agent,
+      headers: {
+        "X-Apple-Store-Front": storefrontFor(country),
+        accept: "application/xml",
+      },
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    if (!text) return [];
+    return parsePlistHints(text);
   } catch {
     return [];
   }

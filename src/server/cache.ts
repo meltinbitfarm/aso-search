@@ -1,6 +1,9 @@
 import { LRUCache } from "lru-cache";
 
-const ttl = Number(process.env.CACHE_TTL_MS ?? 86_400_000); // 24h
+// 48h default: autosuggest-backed popularity adds ~6 API calls per keyword
+// and these signals change very slowly. A longer cache window makes
+// batched checks cheap and gentle on Apple.
+const ttl = Number(process.env.CACHE_TTL_MS ?? 172_800_000);
 const max = Number(process.env.CACHE_MAX_ENTRIES ?? 2000);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
