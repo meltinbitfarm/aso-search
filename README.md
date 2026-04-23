@@ -90,7 +90,7 @@ curl -s http://localhost:8787/healthz   # se esponi le porte in locale
 Per testare con porte locali senza cambiare il compose, esporta i servizi in un override:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml up --build
+docker compose -f docker-compose.yaml -f docker-compose.override.yaml up --build
 ```
 (override file non versionato, con `ports: ["80:80"]` / `["8787:8787"]`).
 
