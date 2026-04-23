@@ -15,7 +15,7 @@ import { keywordCheckInput, type KeywordCheckArgs } from "../schemas.js";
 // When totalApps === ITUNES_SEARCH_LIMIT we emit apps_in_ranking_capped=true.
 const ITUNES_SEARCH_LIMIT = 50;
 
-interface KeywordCheckResult {
+export interface KeywordCheckResult {
   keyword: string;
   country: string;
   popularity: number;
@@ -27,7 +27,7 @@ interface KeywordCheckResult {
   updated_at: string;
 }
 
-async function checkOne(
+export async function checkOne(
   keyword: string,
   country: string,
   store: string,
