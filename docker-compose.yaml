@@ -14,13 +14,13 @@ services:
       timeout: 5s
       retries: 3
 
-  mcp:
+  api:
     build:
       context: .
       dockerfile: Dockerfile.server
     restart: unless-stopped
     environment:
-      - SERVICE_FQDN_MCP
+      - SERVICE_FQDN_API_3000
       - PORT=3000
       - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN}
       - NODE_ENV=production
@@ -28,13 +28,6 @@ services:
       - CACHE_MAX_ENTRIES=${CACHE_MAX_ENTRIES:-2000}
     expose:
       - "3000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.aso-mcp.rule=Host(`${SERVICE_FQDN_MCP}`)"
-      - "traefik.http.routers.aso-mcp.entrypoints=https"
-      - "traefik.http.routers.aso-mcp.tls=true"
-      - "traefik.http.routers.aso-mcp.tls.certresolver=letsencrypt"
-      - "traefik.http.services.aso-mcp.loadbalancer.server.port=3000"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
       interval: 30s
