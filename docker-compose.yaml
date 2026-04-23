@@ -20,16 +20,16 @@ services:
       dockerfile: Dockerfile.server
     restart: unless-stopped
     environment:
-      - SERVICE_FQDN_API_3000
-      - PORT=3000
+      - SERVICE_FQDN_API
+      - PORT=80
       - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN}
       - NODE_ENV=production
       - CACHE_TTL_MS=${CACHE_TTL_MS:-86400000}
       - CACHE_MAX_ENTRIES=${CACHE_MAX_ENTRIES:-2000}
     expose:
-      - "3000"
+      - "80"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
