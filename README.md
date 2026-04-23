@@ -70,11 +70,11 @@ Primario: Apple search hints. Fallback: related keywords estratte dai titoli del
 
 Il `docker-compose.yaml` contiene **solo il servizio `api`** (MCP server). Il frontend React si sviluppa in locale con `npm run dev` ma non va in produzione.
 
-1. Nella UI Coolify crea una nuova applicazione → *Docker Compose* → punta al repo.
-2. In *Environment Variables* aggiungi:
+1. DNS: A record `aso-mcp.meltinbitfarm.cloud` → IP del VPS Coolify.
+2. In Coolify → *Environment Variables*:
    - `MCP_BEARER_TOKEN=<token>` — genera con `openssl rand -hex 32`.
    - Opzionali: `CACHE_TTL_MS`, `CACHE_MAX_ENTRIES`.
-3. Coolify auto-genera `SERVICE_FQDN_API` (subdomain random) e configura Traefik + HTTPS. Il container ascolta su **porta 80** (allineato con `SERVICE_FQDN_API=...:80` che Coolify pubblica di default).
+3. Il compose hardcoda `SERVICE_FQDN_API=aso-mcp.meltinbitfarm.cloud`, quindi Coolify non genera subdomain random — usa quello fisso e configura Traefik + HTTPS per lui. Il container ascolta su **porta 80**.
 4. Push su `main` → deploy automatico.
 
 Build locale di verifica (solo il servizio api):
