@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { AnalyzeResult } from "../src/lib/aso/types.js";
 
-// Mock itunesHints so popularity() is tested as a pure scoring function.
+// Mock itunesHintsDetailed so popularity() is tested as a pure scoring function.
 vi.mock("../src/lib/aso/itunes.js", async () => {
   const actual =
     await vi.importActual<typeof import("../src/lib/aso/itunes.js")>(
       "../src/lib/aso/itunes.js",
     );
-  return { ...actual, itunesHints: vi.fn() };
+  return { ...actual, itunesHintsDetailed: vi.fn() };
 });
 
 import {
@@ -16,9 +16,9 @@ import {
   difficulty,
   popularity,
 } from "../src/lib/aso/scoring.js";
-import { itunesHints } from "../src/lib/aso/itunes.js";
+import { itunesHintsDetailed } from "../src/lib/aso/itunes.js";
 
-const mockedHints = vi.mocked(itunesHints);
+const mockedHints = vi.mocked(itunesHintsDetailed);
 
 function mkResult(overrides: Partial<AnalyzeResult> = {}): AnalyzeResult {
   return {
@@ -56,6 +56,20 @@ function mkResult(overrides: Partial<AnalyzeResult> = {}): AnalyzeResult {
   };
 }
 
+// Helper: build 10 detailed hints with a given term at given rank.
+function hintsWithKwAt(
+  kw: string,
+  rank: number,
+  total = 10,
+): { term: string; rank: number }[] {
+  const out: { term: string; rank: number }[] = [];
+  for (let i = 0; i < total; i++) {
+    if (i === rank) out.push({ term: kw, rank: i });
+    else out.push({ term: `other ${i}`, rank: i });
+  }
+  return out;
+}
+
 describe("competitionHeat (renamed from old popularity — regression guard)", () => {
   test("high totalApps + high avgReviews → > 70", () => {
     const r = mkResult({ totalApps: 50, avgReviews: 50_000, maxReviews: 500_000 });
@@ -68,17 +82,9 @@ describe("competitionHeat (renamed from old popularity — regression guard)", (
   });
 
   test("deterministic formula (regression): expected exact values", () => {
-    // These exact values pin the old popularity formula so any drift is caught.
-    // Old formula: 0.35*clamp(totalApps/50) + 0.40*clamp(log10(max(avgRev,1))/5) + 0.25*clamp(log10(max(maxRev,1))/6)
-    // then round(1 + 99*raw).
     const r1 = mkResult({ totalApps: 50, avgReviews: 10_000, maxReviews: 100_000 });
-    // raw = 0.35 * 1 + 0.4 * (4/5) + 0.25 * (5/6) = 0.35 + 0.32 + 0.2083 = 0.8783
-    // score = round(1 + 99*0.8783) = round(87.95) = 88
     expect(competitionHeat(r1)).toBe(88);
-
     const r2 = mkResult({ totalApps: 10, avgReviews: 100, maxReviews: 1_000 });
-    // raw = 0.35*0.2 + 0.4*0.4 + 0.25*0.5 = 0.07 + 0.16 + 0.125 = 0.355
-    // score = round(1 + 35.145) = round(36.145) = 36
     expect(competitionHeat(r2)).toBe(36);
   });
 });
@@ -138,88 +144,77 @@ describe("difficulty", () => {
   });
 });
 
-describe("popularity (autosuggest-based)", () => {
+describe("popularity (autosuggest-based, rank-weighted)", () => {
   beforeEach(() => {
     mockedHints.mockReset();
   });
 
-  test("5+ prefix matches at rank 0 with full own hints → >= 80", async () => {
-    // Every call returns the keyword at rank 0 with 10 hints total.
-    mockedHints.mockImplementation(async () => [
-      "foobarz",
-      "foobarz pro",
-      "foobarz lite",
-      "foobarz plus",
-      "foobarz x",
-      "other 1",
-      "other 2",
-      "other 3",
-      "other 4",
-      "other 5",
-    ]);
+  test("rank 0 everywhere (own + every prefix) → >= 80", async () => {
+    mockedHints.mockImplementation(async (term: string) => {
+      // The keyword always comes back at rank 0, 10 hints total.
+      return hintsWithKwAt("foobarz", 0, 10);
+    });
     const { score, evidence } = await popularity("foobarz", "us");
     expect(score).toBeGreaterThanOrEqual(80);
     expect(evidence.appears_in_own_hints).toBe(true);
+    expect(evidence.own_hints_rank).toBe(0);
     expect(evidence.total_hints_for_keyword).toBe(10);
     expect(evidence.prefix_matches).toBeGreaterThanOrEqual(3);
   });
 
-  test("0 hints everywhere → <= 15 (dead niche)", async () => {
+  test("empty hints everywhere → 5 (dead-niche fallback)", async () => {
     mockedHints.mockImplementation(async () => []);
     const { score, evidence } = await popularity("supernichetopicxyz", "us");
-    expect(score).toBeLessThanOrEqual(15);
+    expect(score).toBe(5);
     expect(evidence.total_hints_for_keyword).toBe(0);
     expect(evidence.prefix_matches).toBe(0);
     expect(evidence.appears_in_own_hints).toBe(false);
+    expect(evidence.own_hints_rank).toBe(-1);
   });
 
-  test("partial signal (2-3 prefix matches) → 40-65", async () => {
-    // Own: 8 hints incl keyword at rank 2. Prefix calls: keyword present
-    // only in the ~middle-length prefixes, missing on very short and
-    // very long variants (simulates a real niche).
+  test("own hints present but keyword at rank 3 in only half the prefixes → 20-50", async () => {
     mockedHints.mockImplementation(async (term: string) => {
       if (term === "midnichekw") {
-        // own hints: keyword appears at rank 2
-        return [
-          "midnichefoo",
-          "midnichebar",
-          "midnichekw",
-          "midnichex",
-          "midnichey",
-          "midnichez",
-          "midnichea",
-          "midnicheb",
-        ];
+        // Own hints: kw at rank 3 (mid), 8 total.
+        return hintsWithKwAt("midnichekw", 3, 8);
       }
-      // Short prefixes: no match. Middle: match. Long: match.
+      // Only mid-length prefixes return the keyword at rank 2.
       if (term.length >= 7 && term.length <= 9) {
-        return ["midnichekw", "midnichekw pro", "other"];
+        return hintsWithKwAt("midnichekw", 2, 10);
       }
-      return ["random1", "random2"];
+      return [
+        { term: "random1", rank: 0 },
+        { term: "random2", rank: 1 },
+      ];
     });
     const { score, evidence } = await popularity("midnichekw", "us");
-    expect(score).toBeGreaterThanOrEqual(40);
-    expect(score).toBeLessThanOrEqual(65);
+    expect(score).toBeGreaterThanOrEqual(20);
+    expect(score).toBeLessThanOrEqual(50);
     expect(evidence.prefix_matches).toBeGreaterThanOrEqual(1);
-    expect(evidence.prefix_matches).toBeLessThanOrEqual(4);
   });
 
-  test("short keyword (<3 chars) → neutral 50 + short_keyword flag", async () => {
+  test("short keyword (<4 chars) → neutral 50 + short_keyword flag", async () => {
     mockedHints.mockImplementation(async () => []);
     const { score, evidence } = await popularity("ai", "us");
     expect(score).toBe(50);
     expect(evidence.short_keyword).toBe(true);
   });
 
-  test("itunesHints throwing propagates (documents current behavior)", async () => {
-    // The runtime itunesHints() swallows errors internally and returns [].
-    // But if something in the call chain throws synchronously, Promise.all
-    // will reject. This documents the contract: popularity does NOT
-    // further wrap errors. Upstream callers handle them.
+  test("itunesHintsDetailed throwing propagates (Promise.all rejects)", async () => {
     mockedHints.mockImplementation(async () => {
       throw new Error("simulated network failure");
     });
     await expect(popularity("somekeyword", "us")).rejects.toThrow();
+  });
+
+  test("evidence carries new rank signals", async () => {
+    mockedHints.mockImplementation(async (term: string) => {
+      if (term === "demotopic") return hintsWithKwAt("demotopic", 1, 10);
+      return hintsWithKwAt("demotopic", 4, 10);
+    });
+    const { evidence } = await popularity("demotopic", "us");
+    expect(evidence.own_hints_rank).toBe(1);
+    expect(evidence.prefix_ranks_avg).toBeGreaterThan(0);
   });
 });
 

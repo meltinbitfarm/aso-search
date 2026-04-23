@@ -108,12 +108,22 @@ function parsePlistHints(xml: string): string[] {
   return terms;
 }
 
-/**
- * Apple App Store autosuggest. Returns the suggested search terms for a prefix.
- * Uses the non-documented MZSearchHints endpoint which requires an
- * X-Apple-Store-Front header per country and returns plist XML.
- */
-export async function itunesHints(term: string, country = "us"): Promise<string[]> {
+export interface HintDetailed {
+  term: string;
+  /** Position in the array, 0-indexed. Lower = higher priority. */
+  rank: number;
+  /**
+   * Apple's explicit priority value if present in the response.
+   * Empirically Apple's MZSearchHints endpoint returns ONLY `term` and `url`
+   * for each hint (any User-Agent / storefront combo tested, all return
+   * plist XML). `priority` is therefore always undefined — kept in the
+   * shape in case Apple ever adds the field. The `rank` field above is
+   * the only ordinal signal we have.
+   */
+  priority?: number;
+}
+
+async function fetchHintsPlist(term: string, country: string): Promise<string | null> {
   const u = new URL(`${ITUNES_HINTS_BASE}/WebObjects/MZSearchHints.woa/wa/hints`);
   u.searchParams.set("clientApplication", "Software");
   u.searchParams.set("term", term);
@@ -126,11 +136,34 @@ export async function itunesHints(term: string, country = "us"): Promise<string[
         accept: "application/xml",
       },
     });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const text = await res.text();
-    if (!text) return [];
-    return parsePlistHints(text);
+    return text || null;
   } catch {
-    return [];
+    return null;
   }
+}
+
+/**
+ * Apple App Store autosuggest. Returns the suggested search terms for a prefix.
+ * Uses the non-documented MZSearchHints endpoint which requires an
+ * X-Apple-Store-Front header per country and returns plist XML.
+ */
+export async function itunesHints(term: string, country = "us"): Promise<string[]> {
+  const xml = await fetchHintsPlist(term, country);
+  return xml ? parsePlistHints(xml) : [];
+}
+
+/**
+ * Same as itunesHints() but returns structured data with rank information.
+ * Used by the popularity scoring: rank carries the demand signal.
+ */
+export async function itunesHintsDetailed(
+  term: string,
+  country = "us",
+): Promise<HintDetailed[]> {
+  const xml = await fetchHintsPlist(term, country);
+  if (!xml) return [];
+  const terms = parsePlistHints(xml);
+  return terms.map((t, i) => ({ term: t, rank: i }));
 }
