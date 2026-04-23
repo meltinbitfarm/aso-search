@@ -68,31 +68,27 @@ Primario: Apple search hints. Fallback: related keywords estratte dai titoli del
 
 ## Deploy su Coolify
 
-Un singolo progetto Coolify di tipo **Docker Compose** che orchestra entrambi i servizi (`frontend` su nginx + `mcp` su Node).
+Il `docker-compose.yaml` contiene **solo il servizio `api`** (MCP server). Il frontend React si sviluppa in locale con `npm run dev` ma non va in produzione.
 
-1. Nella UI Coolify crea una nuova applicazione → *Docker Compose* → punta al repo. Coolify rileva `docker-compose.yml`.
-2. In *Environment variables* aggiungi:
-   - `MCP_BEARER_TOKEN=<token lungo random>` — genera con `openssl rand -hex 32` (64 char hex) o `openssl rand -base64 32`.
-   - `SERVICE_FQDN_FRONTEND_80=aso.tuodominio.tld` — dominio del frontend.
-   - `SERVICE_FQDN_MCP_8787=aso-mcp.tuodominio.tld` — dominio dell'MCP server.
+1. Nella UI Coolify crea una nuova applicazione → *Docker Compose* → punta al repo.
+2. In *Environment Variables* aggiungi:
+   - `MCP_BEARER_TOKEN=<token>` — genera con `openssl rand -hex 32`.
    - Opzionali: `CACHE_TTL_MS`, `CACHE_MAX_ENTRIES`.
-3. Coolify legge le magic variable `SERVICE_FQDN_<SERVICE>_<PORT>` nel compose e configura automaticamente Traefik + HTTPS per ciascun servizio. Se lasci i valori vuoti, Coolify genera domini wildcard automatici.
-4. Deploy — un solo click rebuilda entrambi i container dallo stesso commit.
+3. Coolify auto-genera `SERVICE_FQDN_API` (subdomain random) e configura Traefik + HTTPS. Il container ascolta su **porta 80** (allineato con `SERVICE_FQDN_API=...:80` che Coolify pubblica di default).
+4. Push su `main` → deploy automatico.
 
-Build locale di verifica:
+Build locale di verifica (solo il servizio api):
 
 ```bash
 cp .env.example .env   # setta MCP_BEARER_TOKEN
 docker compose up --build
-curl -s http://localhost:8787/healthz   # se esponi le porte in locale
+# servizio raggiungibile internamente sulla rete docker; per testarlo
+# aggiungi in un docker-compose.override.yaml (gitignored):
+#   services:
+#     api:
+#       ports: ["8080:80"]
+# poi: curl http://localhost:8080/healthz
 ```
-
-Per testare con porte locali senza cambiare il compose, esporta i servizi in un override:
-
-```bash
-docker compose -f docker-compose.yaml -f docker-compose.override.yaml up --build
-```
-(override file non versionato, con `ports: ["80:80"]` / `["8787:8787"]`).
 
 ## Env vars server
 
